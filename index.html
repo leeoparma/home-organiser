@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Despensa — Controle de Estoque</title>
+<style>
+  :root{
+    --bg:#0b0b0c;
+    --panel:#151517;
+    --panel2:#1d1d20;
+    --line:#2a2a2e;
+    --kraft:#e8c468;
+    --kraft-dim:#9c8a52;
+    --ink:#f4f1e8;
+    --ink-dim:#8a8a8e;
+    --red:#e2574c;
+    --green:#7fb88c;
+    --mono: 'Courier New', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    min-height:100vh;
+    padding-bottom:90px;
+  }
+  /* Header */
+  header{
+    padding:28px 20px 18px;
+    border-bottom:1px solid var(--line);
+    position:sticky; top:0; background:var(--bg); z-index:10;
+  }
+  header .eyebrow{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.2em;
+    color:var(--kraft-dim);
+    text-transform:uppercase;
+    margin-bottom:4px;
+  }
+  header h1{
+    margin:0;
+    font-size:28px;
+    font-weight:800;
+    letter-spacing:-0.02em;
+  }
+  header h1 span{color:var(--kraft);}
+
+  /* Tabs */
+  nav.tabs{
+    display:flex;
+    gap:6px;
+    padding:14px 20px 0;
+    border-bottom:1px solid var(--line);
+    overflow-x:auto;
+  }
+  nav.tabs button{
+    background:none;
+    border:none;
+    color:var(--ink-dim);
+    font-family:var(--sans);
+    font-size:14px;
+    font-weight:600;
+    padding:10px 4px 14px;
+    cursor:pointer;
+    border-bottom:2px solid transparent;
+    white-space:nowrap;
+    margin-right:18px;
+    transition:.15s;
+  }
+  nav.tabs button.active{
+    color:var(--kraft);
+    border-bottom-color:var(--kraft);
+  }
+
+  main{padding:18px 16px 40px; max-width:760px; margin:0 auto;}
+  section{display:none;}
+  section.active{display:block; animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+  /* Category groups */
+  .cat-group{margin-bottom:22px;}
+  .cat-title{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:.15em;
+    text-transform:uppercase;
+    color:var(--kraft-dim);
+    margin:0 0 10px;
+    padding-bottom:6px;
+    border-bottom:1px dashed var(--line);
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .item-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px 12px;
+    margin-bottom:8px;
+  }
+  .item-row.zero{
+    border-color:var(--red);
+    background:#1c1212;
+  }
+  .item-row .info{flex:1; min-width:0;}
+  .item-row .name{font-weight:600; font-size:15px;}
+  .item-row.zero .name{color:var(--red);}
+  .item-row .qty{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--ink-dim);
+    margin-top:2px;
+  }
+  .item-row.zero .qty{color:var(--red); font-weight:600;}
+  .item-row .actions{display:flex; gap:6px; flex-shrink:0;}
+  .icon-btn{
+    width:34px; height:34px;
+    border-radius:8px;
+    border:1px solid var(--line);
+    background:var(--panel2);
+    color:var(--ink);
+    font-size:16px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    transition:.15s;
+  }
+  .icon-btn:hover{border-color:var(--kraft); color:var(--kraft);}
+  .icon-btn.add{color:var(--kraft); font-weight:700;}
+  .icon-btn.danger:hover{border-color:var(--red); color:var(--red);}
+  .qty-stepper{display:flex; align-items:center; gap:6px;}
+  .qty-stepper button{
+    width:28px;height:28px;border-radius:6px;border:1px solid var(--line);
+    background:var(--panel2); color:var(--ink); cursor:pointer; font-size:14px;
+  }
+  .qty-stepper span{font-family:var(--mono); min-width:24px; text-align:center;}
+
+  .empty-note{
+    color:var(--ink-dim);
+    font-size:13px;
+    font-family:var(--mono);
+    padding:30px 10px;
+    text-align:center;
+    border:1px dashed var(--line);
+    border-radius:10px;
+  }
+
+  /* FAB */
+  .fab{
+    position:fixed;
+    bottom:24px; right:20px;
+    width:58px; height:58px;
+    border-radius:50%;
+    background:var(--kraft);
+    color:#1a1606;
+    border:none;
+    font-size:28px;
+    font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    box-shadow:0 6px 24px rgba(232,196,104,.35);
+    z-index:50;
+    transition:transform .15s;
+  }
+  .fab:active{transform:scale(.92);}
+
+  /* Modal */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.6);
+    display:none; align-items:flex-end; justify-content:center; z-index:100;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:18px 18px 0 0;
+    width:100%; max-width:480px;
+    padding:22px;
+    max-height:88vh; overflow-y:auto;
+    animation:slideup .25s ease;
+  }
+  @keyframes slideup{from{transform:translateY(40px); opacity:0;} to{transform:translateY(0); opacity:1;}}
+  .modal h2{margin:0 0 16px; font-size:18px;}
+  .field{margin-bottom:14px;}
+  .field label{
+    display:block; font-size:12px; font-family:var(--mono);
+    color:var(--ink-dim); text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px;
+  }
+  .field input, .field select{
+    width:100%; background:var(--panel2); border:1px solid var(--line);
+    border-radius:8px; padding:11px 12px; color:var(--ink); font-size:15px;
+    font-family:var(--sans);
+  }
+  .field input:focus, .field select:focus{outline:none; border-color:var(--kraft);}
+  .row2{display:flex; gap:10px;}
+  .row2 .field{flex:1;}
+  .btn{
+    width:100%; padding:13px; border-radius:10px; border:none;
+    font-weight:700; font-size:15px; cursor:pointer; margin-top:6px;
+  }
+  .btn-primary{background:var(--kraft); color:#1a1606;}
+  .btn-secondary{background:var(--panel2); color:var(--ink); border:1px solid var(--line);}
+  .btn-row{display:flex; gap:10px; margin-top:4px;}
+  .btn-row .btn{margin-top:0;}
+
+  #scanner-wrap{display:none; margin-bottom:14px;}
+  #scanner-wrap video{width:100%; border-radius:10px; background:#000;}
+  .scan-status{font-family:var(--mono); font-size:12px; color:var(--kraft-dim); margin-top:6px; text-align:center;}
+
+  /* Shopping list */
+  .shop-row{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:12px; margin-bottom:8px;
+  }
+  .shop-row .top{display:flex; justify-content:space-between; align-items:center; gap:10px;}
+  .shop-row .name{font-weight:600; font-size:15px;}
+  .shop-row .qty{font-family:var(--mono); font-size:12px; color:var(--ink-dim);}
+  .price-line{
+    display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;
+  }
+  .price-chip{
+    font-family:var(--mono); font-size:12px;
+    border:1px solid var(--line); border-radius:8px;
+    padding:6px 10px; flex:1; min-width:80px; text-align:center;
+    background:var(--panel2); color:var(--ink-dim);
+  }
+  .price-chip.best{
+    border-color:var(--green); color:var(--green); font-weight:700;
+    background:#11201588;
+  }
+  .price-chip .market{display:block; font-size:10px; letter-spacing:.1em; text-transform:uppercase; margin-bottom:2px; opacity:.7;}
+  .savings-note{
+    font-family:var(--mono); font-size:12px; color:var(--kraft);
+    margin-top:8px; padding-top:8px; border-top:1px dashed var(--line);
+  }
+  .alt-note{font-family:var(--mono); font-size:11px; color:var(--ink-dim); margin-top:6px;}
+
+  /* Receipt summary */
+  .receipt{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:18px;
+    margin-bottom:18px;
+    font-family:var(--mono);
+  }
+  .receipt .perforation{
+    border-top:1px dashed var(--line);
+    margin:12px 0;
+  }
+  .receipt .line{display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px; color:var(--ink-dim);}
+  .receipt .total{display:flex; justify-content:space-between; font-size:16px; font-weight:700; color:var(--kraft); margin-top:8px;}
+  .receipt .total .save{color:var(--green);}
+
+  /* Price table */
+  table.price-table{width:100%; border-collapse:collapse; font-size:13px;}
+  table.price-table th, table.price-table td{
+    border:1px solid var(--line); padding:8px; text-align:center;
+  }
+  table.price-table th{
+    font-family:var(--mono); font-size:11px; text-transform:uppercase;
+    color:var(--kraft-dim); letter-spacing:.05em; background:var(--panel2);
+  }
+  table.price-table td:first-child{text-align:left; font-weight:600;}
+  table.price-table input{
+    width:64px; background:var(--panel2); border:1px solid var(--line);
+    border-radius:6px; color:var(--ink); padding:6px; font-family:var(--mono);
+    text-align:center;
+  }
+  .price-table-wrap{overflow-x:auto; margin-bottom:14px;}
+  .hint{font-size:12px; color:var(--ink-dim); font-family:var(--mono); margin-bottom:14px; line-height:1.6;}
+
+  .section-title{font-size:18px; font-weight:800; margin:4px 0 16px;}
+  .toast{
+    position:fixed; bottom:96px; left:50%; transform:translateX(-50%);
+    background:var(--kraft); color:#1a1606; padding:10px 18px; border-radius:8px;
+    font-size:13px; font-weight:700; z-index:200; opacity:0; transition:opacity .25s;
+    pointer-events:none;
+  }
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">controle doméstico</div>
+  <h1>Desp<span>ensa</span></h1>
+</header>
+
+<nav class="tabs">
+  <button class="active" data-tab="estoque">Estoque</button>
+  <button data-tab="lista">Lista de Compras</button>
+  <button data-tab="precos">Preços</button>
+</nav>
+
+<main>
+
+  <!-- ESTOQUE -->
+  <section id="estoque" class="active">
+    <div class="section-title">O que tenho em casa</div>
+    <div id="inventory-list"></div>
+  </section>
+
+  <!-- LISTA DE COMPRAS -->
+  <section id="lista">
+    <div class="section-title">Lista de compras</div>
+    <div id="receipt-summary"></div>
+    <div id="shopping-list"></div>
+  </section>
+
+  <!-- PREÇOS -->
+  <section id="precos">
+    <div class="section-title">Tabela de preços</div>
+    <div class="hint">
+      Cadastre o preço de cada produto nos 3 mercados. Deixe em branco se o mercado não vender o item.
+      Esses valores alimentam a comparação na Lista de Compras.
+    </div>
+    <div class="price-table-wrap">
+      <table class="price-table" id="price-table">
+        <thead>
+          <tr><th>Produto</th><th>ALDI</th><th>Coles</th><th>Woolworths</th><th></th></tr>
+        </thead>
+        <tbody id="price-table-body"></tbody>
+      </table>
+    </div>
+    <button class="btn btn-secondary" id="add-price-row">+ Adicionar produto à tabela de preços</button>
+  </section>
+
+</main>
+
+<button class="fab" id="fab-add">+</button>
+
+<!-- MODAL: Adicionar item -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h2>Novo item</h2>
+
+    <div id="scanner-wrap">
+      <video id="scanner-video" autoplay playsinline muted></video>
+      <div class="scan-status" id="scan-status">Aponte a câmera para o código de barras…</div>
+    </div>
+
+    <div class="field">
+      <button class="btn btn-secondary" id="toggle-scanner">📷 Ler código de barras</button>
+    </div>
+
+    <div class="field">
+      <label>Nome do produto</label>
+      <input type="text" id="f-name" placeholder="Ex: Detergente, Arroz, Sabão em pó...">
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label>Categoria</label>
+        <select id="f-category">
+          <option>Limpeza</option>
+          <option>Alimentos</option>
+          <option>Higiene</option>
+          <option>Bebidas</option>
+          <option>Outros</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Quantidade</label>
+        <input type="number" id="f-qty" min="0" value="1">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Código de barras (opcional)</label>
+      <input type="text" id="f-barcode" placeholder="Será preenchido ao escanear">
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="modal-cancel">Cancelar</button>
+      <button class="btn btn-primary" id="modal-save">Salvar item</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+/* ---------------- Firebase setup ---------------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyDKKuebxyxJYEaJyhg0DiUaAE_JWPjq1jM",
+  authDomain: "controle-de-estoque-e-compras.firebaseapp.com",
+  projectId: "controle-de-estoque-e-compras",
+  storageBucket: "controle-de-estoque-e-compras.firebasestorage.app",
+  messagingSenderId: "271360595497",
+  appId: "1:271360595497:web:dd2717af88106715546e38"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const docRef = (name) => db.collection('despensa').doc(name);
+
+/* ---------------- Storage helpers (Firestore) ---------------- */
+async function saveData(key, value){
+  try{ await docRef(key).set({ items: value }); }
+  catch(e){ console.error('firestore save error', e); showToast('Erro ao salvar (verifique internet)'); }
+}
+
+let inventory = [];   // {id, name, category, qty, barcode, hidden}
+let shopping  = [];   // {id, name, category, qty}
+let prices    = [];   // {id, name, aldi, coles, woolies}
+
+const CATEGORIES = ['Limpeza','Alimentos','Higiene','Bebidas','Outros'];
+
+/* ---------------- Init: real-time listeners ---------------- */
+docRef('inventory').onSnapshot(doc=>{
+  inventory = doc.exists ? (doc.data().items || []) : [];
+  renderInventory();
+  renderShopping();
+});
+docRef('shopping').onSnapshot(doc=>{
+  shopping = doc.exists ? (doc.data().items || []) : [];
+  renderShopping();
+});
+docRef('prices').onSnapshot(doc=>{
+  prices = doc.exists ? (doc.data().items || []) : [];
+  renderPriceTable();
+  renderShopping();
+});
+
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ---------------- Tabs ---------------- */
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('main section').forEach(s=>s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ---------------- Inventory render ---------------- */
+function renderInventory(){
+  const wrap = document.getElementById('inventory-list');
+  wrap.innerHTML = '';
+
+  const visible = inventory.filter(i=>!i.hidden);
+  if(visible.length === 0){
+    wrap.innerHTML = '<div class="empty-note">Nenhum item cadastrado ainda.<br>Toque no botão + para adicionar o primeiro.</div>';
+    return;
+  }
+
+  CATEGORIES.forEach(cat=>{
+    const items = visible.filter(i=>i.category===cat);
+    if(items.length===0) return;
+    const group = document.createElement('div');
+    group.className = 'cat-group';
+    group.innerHTML = `<div class="cat-title"><span>${cat}</span><span>${items.length}</span></div>`;
+
+    items.forEach(item=>{
+      const row = document.createElement('div');
+      row.className = 'item-row' + (item.qty<=0 ? ' zero' : '');
+      row.innerHTML = `
+        <div class="info">
+          <div class="name">${item.name}</div>
+          <div class="qty">${item.qty<=0 ? 'EM FALTA' : 'Qtd: '+item.qty}</div>
+        </div>
+        <div class="qty-stepper">
+          <button data-act="dec">−</button>
+          <span>${item.qty}</span>
+          <button data-act="inc">+</button>
+        </div>
+        <div class="actions">
+          <button class="icon-btn add" data-act="tolist" title="Adicionar à lista de compras">＋</button>
+          <button class="icon-btn danger" data-act="hide" title="Não mostrar mais este item">✕</button>
+        </div>
+      `;
+      row.querySelector('[data-act="inc"]').onclick = ()=>changeQty(item.id, 1);
+      row.querySelector('[data-act="dec"]').onclick = ()=>changeQty(item.id, -1);
+      row.querySelector('[data-act="tolist"]').onclick = ()=>addToShoppingList(item);
+      row.querySelector('[data-act="hide"]').onclick = ()=>hideItem(item.id);
+      group.appendChild(row);
+    });
+    wrap.appendChild(group);
+  });
+}
+
+function changeQty(id, delta){
+  const item = inventory.find(i=>i.id===id);
+  if(!item) return;
+  item.qty = Math.max(0, item.qty + delta);
+  saveData('inventory', inventory);
+  renderInventory();
+}
+
+function hideItem(id){
+  const item = inventory.find(i=>i.id===id);
+  if(!item) return;
+  if(!confirm(`Não mostrar mais "${item.name}" na lista de estoque?`)) return;
+  item.hidden = true;
+  saveData('inventory', inventory);
+  renderInventory();
+}
+
+/* ---------------- Modal: add item ---------------- */
+const overlay = document.getElementById('modal-overlay');
+document.getElementById('fab-add').onclick = ()=>{
+  document.getElementById('f-name').value='';
+  document.getElementById('f-category').value='Limpeza';
+  document.getElementById('f-qty').value=1;
+  document.getElementById('f-barcode').value='';
+  overlay.classList.add('show');
+};
+document.getElementById('modal-cancel').onclick = ()=>{
+  stopScanner();
+  overlay.classList.remove('show');
+};
+document.getElementById('modal-save').onclick = ()=>{
+  const name = document.getElementById('f-name').value.trim();
+  if(!name){ showToast('Digite o nome do produto'); return; }
+  const category = document.getElementById('f-category').value;
+  const qty = parseInt(document.getElementById('f-qty').value)||0;
+  const barcode = document.getElementById('f-barcode').value.trim();
+
+  // se já existe item com mesmo nome e estava oculto, reativa
+  let existing = inventory.find(i=>i.name.toLowerCase()===name.toLowerCase());
+  if(existing){
+    existing.qty = qty;
+    existing.category = category;
+    existing.barcode = barcode || existing.barcode;
+    existing.hidden = false;
+  } else {
+    inventory.push({id:uid(), name, category, qty, barcode, hidden:false});
+  }
+  saveData('inventory', inventory);
+  renderInventory();
+  stopScanner();
+  overlay.classList.remove('show');
+  showToast('Item salvo!');
+};
+
+/* ---------------- Barcode scanner ---------------- */
+let stream = null;
+let scanning = false;
+const scannerWrap = document.getElementById('scanner-wrap');
+const video = document.getElementById('scanner-video');
+const scanStatus = document.getElementById('scan-status');
+
+document.getElementById('toggle-scanner').onclick = async ()=>{
+  if(scannerWrap.style.display === 'block'){
+    stopScanner();
+    return;
+  }
+  if(!('BarcodeDetector' in window)){
+    scanStatus.textContent = 'Leitor de código de barras não suportado neste navegador. Digite o código manualmente.';
+    scannerWrap.style.display = 'block';
+    return;
+  }
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    video.srcObject = stream;
+    scannerWrap.style.display = 'block';
+    scanning = true;
+    scanLoop();
+  }catch(e){
+    scanStatus.textContent = 'Não foi possível acessar a câmera.';
+    scannerWrap.style.display = 'block';
+  }
+};
+
+async function scanLoop(){
+  if(!scanning) return;
+  try{
+    const detector = new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128']});
+    const barcodes = await detector.detect(video);
+    if(barcodes.length>0){
+      document.getElementById('f-barcode').value = barcodes[0].rawValue;
+      scanStatus.textContent = 'Código lido: '+barcodes[0].rawValue;
+      showToast('Código de barras lido!');
+      stopScanner();
+      return;
+    }
+  }catch(e){ /* ignore frame errors */ }
+  requestAnimationFrame(scanLoop);
+}
+
+function stopScanner(){
+  scanning = false;
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  scannerWrap.style.display = 'none';
+}
+
+/* ---------------- Shopping list ---------------- */
+function addToShoppingList(item){
+  const existing = shopping.find(s=>s.name.toLowerCase()===item.name.toLowerCase());
+  if(existing){
+    existing.qty += 1;
+  }else{
+    shopping.push({id:uid(), name:item.name, category:item.category, qty:1});
+  }
+  saveData('shopping', shopping);
+  renderShopping();
+  showToast(`"${item.name}" adicionado à lista de compras`);
+}
+
+function removeFromShopping(id){
+  shopping = shopping.filter(s=>s.id!==id);
+  saveData('shopping', shopping);
+  renderShopping();
+}
+
+function changeShopQty(id, delta){
+  const s = shopping.find(s=>s.id===id);
+  if(!s) return;
+  s.qty = Math.max(1, s.qty+delta);
+  saveData('shopping', shopping);
+  renderShopping();
+}
+
+function findPriceForName(name){
+  return prices.find(p=>p.name.toLowerCase()===name.toLowerCase());
+}
+
+function renderShopping(){
+  const wrap = document.getElementById('shopping-list');
+  const summary = document.getElementById('receipt-summary');
+  wrap.innerHTML = '';
+
+  if(shopping.length===0){
+    summary.innerHTML = '';
+    wrap.innerHTML = '<div class="empty-note">Sua lista de compras está vazia.<br>Use o botão ＋ no Estoque para adicionar itens.</div>';
+    return;
+  }
+
+  let totalBest = 0, totalWorst = 0, itemsWithPrice = 0;
+
+  shopping.forEach(s=>{
+    const row = document.createElement('div');
+    row.className = 'shop-row';
+
+    const p = findPriceForName(s.name);
+    let priceHtml = '';
+    let bestNote = '';
+
+    if(p){
+      const markets = [
+        {key:'aldi', label:'ALDI', val:p.aldi},
+        {key:'coles', label:'Coles', val:p.coles},
+        {key:'woolies', label:'Woolworths', val:p.woolies},
+      ];
+      const available = markets.filter(m=>m.val!==null && m.val!==undefined && m.val!=='' && !isNaN(m.val));
+      if(available.length>0){
+        const sorted = [...available].sort((a,b)=>a.val-b.val);
+        const cheapest = sorted[0];
+        const priciest = sorted[sorted.length-1];
+
+        priceHtml = '<div class="price-line">' + markets.map(m=>{
+          const has = m.val!==null && m.val!==undefined && m.val!=='' && !isNaN(m.val);
+          const isBest = has && m.key===cheapest.key;
+          return `<div class="price-chip ${isBest?'best':''}">
+                    <span class="market">${m.label}</span>
+                    ${has ? '$'+parseFloat(m.val).toFixed(2) : '—'}
+                  </div>`;
+        }).join('') + '</div>';
+
+        const missing = markets.filter(m=>!(m.val!==null && m.val!==undefined && m.val!=='' && !isNaN(m.val)));
+        if(missing.length>0){
+          priceHtml += `<div class="alt-note">Não encontrado em ${missing.map(m=>m.label).join(', ')} — alternativa: comprar na ${cheapest.label} (mais barata disponível: $${parseFloat(cheapest.val).toFixed(2)})</div>`;
+        }
+
+        const saving = (priciest.val - cheapest.val) * s.qty;
+        if(saving>0){
+          priceHtml += `<div class="alt-note" style="color:var(--green)">Economia escolhendo ${cheapest.label}: $${saving.toFixed(2)} (vs ${priciest.label})</div>`;
+        }
+
+        totalBest += cheapest.val * s.qty;
+        totalWorst += priciest.val * s.qty;
+        itemsWithPrice++;
+      } else {
+        priceHtml = '<div class="alt-note">Preço não cadastrado para nenhum mercado. Adicione na aba "Preços".</div>';
+      }
+    } else {
+      priceHtml = '<div class="alt-note">Produto sem preços cadastrados. Adicione na aba "Preços" para comparar.</div>';
+    }
+
+    row.innerHTML = `
+      <div class="top">
+        <div>
+          <div class="name">${s.name}</div>
+          <div class="qty">${s.category}</div>
+        </div>
+        <div class="qty-stepper">
+          <button data-act="dec">−</button>
+          <span>${s.qty}</span>
+          <button data-act="inc">+</button>
+        </div>
+        <button class="icon-btn danger" data-act="rm" title="Remover da lista">✕</button>
+      </div>
+      ${priceHtml}
+    `;
+    row.querySelector('[data-act="inc"]').onclick = ()=>changeShopQty(s.id,1);
+    row.querySelector('[data-act="dec"]').onclick = ()=>changeShopQty(s.id,-1);
+    row.querySelector('[data-act="rm"]').onclick = ()=>removeFromShopping(s.id);
+    wrap.appendChild(row);
+  });
+
+  if(itemsWithPrice>0){
+    const totalSaving = totalWorst - totalBest;
+    summary.innerHTML = `
+      <div class="receipt">
+        <div class="line"><span>Itens na lista</span><span>${shopping.length}</span></div>
+        <div class="line"><span>Itens com preço cadastrado</span><span>${itemsWithPrice}</span></div>
+        <div class="perforation"></div>
+        <div class="line"><span>Total comprando no mercado mais barato (item a item)</span><span>$${totalBest.toFixed(2)}</span></div>
+        <div class="line"><span>Total se fosse tudo no mercado mais caro</span><span>$${totalWorst.toFixed(2)}</span></div>
+        <div class="total"><span>Economia estimada</span><span class="save">$${totalSaving.toFixed(2)}</span></div>
+      </div>
+    `;
+  } else {
+    summary.innerHTML = '';
+  }
+}
+
+/* ---------------- Price table ---------------- */
+function renderPriceTable(){
+  const body = document.getElementById('price-table-body');
+  body.innerHTML = '';
+
+  if(prices.length===0){
+    body.innerHTML = '<tr><td colspan="5" style="color:var(--ink-dim); font-family:var(--mono); font-size:12px;">Nenhum produto cadastrado. Use o botão abaixo da tabela.</td></tr>';
+    return;
+  }
+
+  prices.forEach(p=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" value="${p.name}" data-field="name" style="width:100%; text-align:left;"></td>
+      <td><input type="number" step="0.01" value="${p.aldi ?? ''}" data-field="aldi" placeholder="—"></td>
+      <td><input type="number" step="0.01" value="${p.coles ?? ''}" data-field="coles" placeholder="—"></td>
+      <td><input type="number" step="0.01" value="${p.woolies ?? ''}" data-field="woolies" placeholder="—"></td>
+      <td><button class="icon-btn danger" data-act="rm">✕</button></td>
+    `;
+    tr.querySelectorAll('input').forEach(inp=>{
+      inp.addEventListener('change', ()=>{
+        const field = inp.dataset.field;
+        if(field==='name'){
+          p.name = inp.value;
+        } else {
+          p[field] = inp.value === '' ? null : parseFloat(inp.value);
+        }
+        saveData('prices', prices);
+        renderShopping();
+      });
+    });
+    tr.querySelector('[data-act="rm"]').onclick = ()=>{
+      prices = prices.filter(x=>x.id!==p.id);
+      saveData('prices', prices);
+      renderPriceTable();
+      renderShopping();
+    };
+    body.appendChild(tr);
+  });
+}
+
+document.getElementById('add-price-row').onclick = ()=>{
+  prices.push({id:uid(), name:'', aldi:null, coles:null, woolies:null});
+  saveData('prices', prices);
+  renderPriceTable();
+};
+</script>
+</body>
+</html>

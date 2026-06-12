@@ -716,10 +716,12 @@ function renderShopping(){
         totalWorst += priciest.val * s.qty;
         itemsWithPrice++;
       } else {
-        priceHtml = '<div class="alt-note">Preço não cadastrado para nenhum mercado. Adicione na aba "Preços".</div>';
+        priceHtml = `<div class="alt-note">Preço não cadastrado para nenhum mercado.</div>
+          <button class="btn btn-secondary" data-act="addprice" style="margin-top:6px; padding:8px;">+ Adicionar à tabela de preços</button>`;
       }
     } else {
-      priceHtml = '<div class="alt-note">Produto sem preços cadastrados. Adicione na aba "Preços" para comparar.</div>';
+      priceHtml = `<div class="alt-note">Produto sem preços cadastrados.</div>
+        <button class="btn btn-secondary" data-act="addprice" style="margin-top:6px; padding:8px;">+ Adicionar à tabela de preços</button>`;
     }
 
     row.innerHTML = `
@@ -740,6 +742,10 @@ function renderShopping(){
     row.querySelector('[data-act="inc"]').onclick = ()=>changeShopQty(s.id,1);
     row.querySelector('[data-act="dec"]').onclick = ()=>changeShopQty(s.id,-1);
     row.querySelector('[data-act="rm"]').onclick = ()=>removeFromShopping(s.id);
+    const addPriceBtn = row.querySelector('[data-act="addprice"]');
+    if(addPriceBtn){
+      addPriceBtn.onclick = ()=>addPriceRowFromName(s.name);
+    }
     wrap.appendChild(row);
   });
 
@@ -806,6 +812,23 @@ document.getElementById('add-price-row').onclick = ()=>{
   saveData('prices', prices);
   renderPriceTable();
 };
+
+function addPriceRowFromName(name){
+  if(prices.some(p=>p.name.toLowerCase()===name.toLowerCase())){
+    showToast('Já existe na tabela de preços');
+  } else {
+    prices.push({id:uid(), name, aldi:null, coles:null, woolies:null});
+    saveData('prices', prices);
+    renderPriceTable();
+    renderShopping();
+    showToast('Adicionado à tabela de preços!');
+  }
+  // leva para a aba Preços
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('main section').forEach(s=>s.classList.remove('active'));
+  document.querySelector('nav.tabs button[data-tab="precos"]').classList.add('active');
+  document.getElementById('precos').classList.add('active');
+}
 </script>
 </body>
 </html>

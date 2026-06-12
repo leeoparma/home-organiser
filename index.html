@@ -572,10 +572,12 @@ document.getElementById('toggle-scanner').onclick = async ()=>{
       video,
       (result, err)=>{
         if(result){
-          document.getElementById('f-barcode').value = result.getText();
-          scanStatus.textContent = 'Código lido: '+result.getText();
+          const code = result.getText();
+          document.getElementById('f-barcode').value = code;
+          scanStatus.textContent = 'Código lido: '+code+' — buscando produto…';
           showToast('Código de barras lido!');
           stopScanner();
+          lookupProduct(code);
         }
       }
     );
@@ -590,6 +592,41 @@ function stopScanner(){
   scanning = false;
   try{ codeReader.reset(); }catch(e){}
   scannerWrap.style.display = 'none';
+}
+
+/* ---------------- Preenchimento automático via Open Food Facts ---------------- */
+function guessCategory(tags, name){
+  const text = ((tags||[]).join(' ') + ' ' + (name||'')).toLowerCase();
+  if(/clean|detergent|soap|bleach|laundry|dish|limpeza|sabao|sabão|detergente/.test(text)) return 'Limpeza';
+  if(/hygiene|shampoo|toothpaste|deodorant|higiene|sabonete|creme dental|shampoo/.test(text)) return 'Higiene';
+  if(/beverage|drink|juice|soda|water|coffee|tea|bebida|suco|refrigerante|cerveja|cafe|café/.test(text)) return 'Bebidas';
+  if(/food|snack|grocery|alimento|comida|arroz|feijao|massa|cereal/.test(text)) return 'Alimentos';
+  return null;
+}
+
+async function lookupProduct(code){
+  try{
+    const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json`);
+    const data = await res.json();
+    if(data.status === 1 && data.product){
+      const p = data.product;
+      const name = p.product_name || p.product_name_pt || p.generic_name || '';
+      if(name){
+        document.getElementById('f-name').value = name;
+      }
+      const cat = guessCategory(p.categories_tags, name);
+      if(cat){
+        document.getElementById('f-category').value = cat;
+      }
+      scanStatus.textContent = name
+        ? `Produto encontrado: ${name}`
+        : 'Produto encontrado, mas sem nome cadastrado. Preencha manualmente.';
+    } else {
+      scanStatus.textContent = 'Produto não encontrado na base. Preencha manualmente.';
+    }
+  }catch(e){
+    scanStatus.textContent = 'Não foi possível buscar o produto (verifique a internet). Preencha manualmente.';
+  }
 }
 
 /* ---------------- Shopping list ---------------- */

@@ -277,6 +277,22 @@
   .hint{font-size:12px; color:var(--ink-dim); font-family:var(--mono); margin-bottom:14px; line-height:1.6;}
 
   .section-title{font-size:18px; font-weight:800; margin:4px 0 16px;}
+
+  .quick-add-shop{
+    display:flex; gap:8px; margin-bottom:16px;
+  }
+  .quick-add-shop input{
+    flex:1; background:var(--panel); border:1px solid var(--line);
+    border-radius:8px; padding:11px 12px; color:var(--ink); font-size:14px;
+    font-family:var(--sans);
+  }
+  .quick-add-shop input:focus{outline:none; border-color:var(--kraft);}
+  .quick-add-shop select{
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:8px; padding:11px 8px; color:var(--ink); font-size:13px;
+    font-family:var(--sans); max-width:110px;
+  }
+
   .toast{
     position:fixed; bottom:96px; left:50%; transform:translateX(-50%);
     background:var(--kraft); color:#1a1606; padding:10px 18px; border-radius:8px;
@@ -310,6 +326,17 @@
   <!-- LISTA DE COMPRAS -->
   <section id="lista">
     <div class="section-title">Lista de compras</div>
+    <div class="quick-add-shop">
+      <input type="text" id="shop-new-name" placeholder="Adicionar item à lista (mesmo que não tenha em casa)">
+      <select id="shop-new-category">
+        <option>Limpeza</option>
+        <option>Alimentos</option>
+        <option>Higiene</option>
+        <option>Bebidas</option>
+        <option>Outros</option>
+      </select>
+      <button class="icon-btn add" id="shop-new-add" title="Adicionar">＋</button>
+    </div>
     <div id="receipt-summary"></div>
     <div id="shopping-list"></div>
   </section>
@@ -655,6 +682,28 @@ function changeShopQty(id, delta){
   saveData('shopping', shopping);
   renderShopping();
 }
+
+/* Adicionar item direto na lista de compras (mesmo sem estar no estoque) */
+document.getElementById('shop-new-add').onclick = ()=>{
+  const nameInput = document.getElementById('shop-new-name');
+  const name = nameInput.value.trim();
+  if(!name){ showToast('Digite o nome do item'); return; }
+  const category = document.getElementById('shop-new-category').value;
+
+  const existing = shopping.find(s=>s.name.toLowerCase()===name.toLowerCase());
+  if(existing){
+    existing.qty += 1;
+  } else {
+    shopping.push({id:uid(), name, category, qty:1});
+  }
+  saveData('shopping', shopping);
+  renderShopping();
+  nameInput.value='';
+  showToast(`"${name}" adicionado à lista`);
+};
+document.getElementById('shop-new-name').addEventListener('keydown', e=>{
+  if(e.key === 'Enter'){ document.getElementById('shop-new-add').click(); }
+});
 
 function findPriceForName(name){
   return prices.find(p=>p.name.toLowerCase()===name.toLowerCase());

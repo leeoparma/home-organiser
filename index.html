@@ -388,6 +388,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 <script>
 /* ---------------- Firebase setup ---------------- */
 const firebaseConfig = {
@@ -549,54 +550,45 @@ document.getElementById('modal-save').onclick = ()=>{
   showToast('Item salvo!');
 };
 
-/* ---------------- Barcode scanner ---------------- */
-let stream = null;
+/* ---------------- Barcode scanner (ZXing - funciona no Safari/iPhone) ---------------- */
+let zxingControls = null;
 let scanning = false;
 const scannerWrap = document.getElementById('scanner-wrap');
 const video = document.getElementById('scanner-video');
 const scanStatus = document.getElementById('scan-status');
+const codeReader = new ZXing.BrowserMultiFormatReader();
 
 document.getElementById('toggle-scanner').onclick = async ()=>{
-  if(scannerWrap.style.display === 'block'){
+  if(scanning){
     stopScanner();
     return;
   }
-  if(!('BarcodeDetector' in window)){
-    scanStatus.textContent = 'Leitor de código de barras não suportado neste navegador. Digite o código manualmente.';
-    scannerWrap.style.display = 'block';
-    return;
-  }
+  scannerWrap.style.display = 'block';
+  scanStatus.textContent = 'Iniciando câmera…';
+  scanning = true;
   try{
-    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-    video.srcObject = stream;
-    scannerWrap.style.display = 'block';
-    scanning = true;
-    scanLoop();
+    zxingControls = await codeReader.decodeFromConstraints(
+      { video: { facingMode: 'environment' } },
+      video,
+      (result, err)=>{
+        if(result){
+          document.getElementById('f-barcode').value = result.getText();
+          scanStatus.textContent = 'Código lido: '+result.getText();
+          showToast('Código de barras lido!');
+          stopScanner();
+        }
+      }
+    );
+    scanStatus.textContent = 'Aponte a câmera para o código de barras…';
   }catch(e){
-    scanStatus.textContent = 'Não foi possível acessar a câmera.';
-    scannerWrap.style.display = 'block';
+    scanStatus.textContent = 'Não foi possível acessar a câmera. Digite o código manualmente.';
+    scanning = false;
   }
 };
 
-async function scanLoop(){
-  if(!scanning) return;
-  try{
-    const detector = new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128']});
-    const barcodes = await detector.detect(video);
-    if(barcodes.length>0){
-      document.getElementById('f-barcode').value = barcodes[0].rawValue;
-      scanStatus.textContent = 'Código lido: '+barcodes[0].rawValue;
-      showToast('Código de barras lido!');
-      stopScanner();
-      return;
-    }
-  }catch(e){ /* ignore frame errors */ }
-  requestAnimationFrame(scanLoop);
-}
-
 function stopScanner(){
   scanning = false;
-  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  try{ codeReader.reset(); }catch(e){}
   scannerWrap.style.display = 'none';
 }
 

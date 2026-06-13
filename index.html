@@ -109,16 +109,28 @@
     border-color:var(--red);
     background:#1c1212;
   }
+  .item-row.low{
+    border-color:var(--kraft);
+    background:#1c1810;
+  }
   .item-row .info{flex:1; min-width:0;}
   .item-row .name{font-weight:600; font-size:15px;}
   .item-row.zero .name{color:var(--red);}
+  .item-row.low .name{color:var(--kraft);}
   .item-row .qty{
     font-family:var(--mono);
     font-size:12px;
     color:var(--ink-dim);
     margin-top:2px;
   }
+  .item-row .size-tag{
+    display:inline-block; margin-left:6px; padding:1px 6px;
+    border:1px solid var(--line); border-radius:5px;
+    font-size:10px; color:var(--ink-dim);
+  }
   .item-row.zero .qty{color:var(--red); font-weight:600;}
+  .item-row.low .qty{color:var(--kraft); font-weight:600;}
+  .icon-btn.low-active{border-color:var(--kraft); color:var(--kraft); background:#241f10;}
   .item-row .actions{display:flex; gap:6px; flex-shrink:0;}
   .icon-btn{
     width:34px; height:34px;
@@ -274,6 +286,18 @@
     text-align:center;
   }
   .price-table-wrap{overflow-x:auto; margin-bottom:14px;}
+  table.price-table input.size-input{width:50px;}
+  table.price-table select.unit-select{
+    width:60px; background:var(--panel2); border:1px solid var(--line);
+    border-radius:6px; color:var(--ink); padding:6px; font-family:var(--mono); font-size:12px;
+  }
+  .unit-price{
+    display:block; font-size:10px; color:var(--green); margin-top:3px;
+    font-family:var(--mono);
+  }
+  .unit-price-chip{
+    display:block; font-size:10px; opacity:.8; margin-top:2px;
+  }
   .hint{font-size:12px; color:var(--ink-dim); font-family:var(--mono); margin-bottom:14px; line-height:1.6;}
 
   .section-title{font-size:18px; font-weight:800; margin:4px 0 16px;}
@@ -345,13 +369,14 @@
   <section id="precos">
     <div class="section-title">Tabela de preços</div>
     <div class="hint">
-      Cadastre o preço de cada produto nos 3 mercados. Deixe em branco se o mercado não vender o item.
-      Esses valores alimentam a comparação na Lista de Compras.
+      Cadastre o tamanho da embalagem (ex: 1 kg, 2 L, 6 un) e o preço de cada produto nos 3 mercados.
+      Deixe em branco se o mercado não vender o item. O app calcula automaticamente o preço por kg/L/unidade
+      para facilitar a comparação real entre tamanhos diferentes.
     </div>
     <div class="price-table-wrap">
       <table class="price-table" id="price-table">
         <thead>
-          <tr><th>Produto</th><th>ALDI</th><th>Coles</th><th>Woolworths</th><th></th></tr>
+          <tr><th>Produto</th><th>Tamanho</th><th>Un.</th><th>ALDI</th><th>Coles</th><th>Woolworths</th><th></th></tr>
         </thead>
         <tbody id="price-table-body"></tbody>
       </table>
@@ -366,14 +391,14 @@
 <!-- MODAL: Adicionar item -->
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal">
-    <h2>Novo item</h2>
+    <h2 id="modal-title">Novo item</h2>
 
     <div id="scanner-wrap">
       <video id="scanner-video" autoplay playsinline muted></video>
       <div class="scan-status" id="scan-status">Aponte a câmera para o código de barras…</div>
     </div>
 
-    <div class="field">
+    <div class="field" id="scan-field">
       <button class="btn btn-secondary" id="toggle-scanner">📷 Ler código de barras</button>
     </div>
 
@@ -382,7 +407,7 @@
       <input type="text" id="f-name" placeholder="Ex: Detergente, Arroz, Sabão em pó...">
     </div>
 
-    <div class="row2">
+    <div class="row2" id="field-cat-qty">
       <div class="field">
         <label>Categoria</label>
         <select id="f-category">
@@ -399,9 +424,33 @@
       </div>
     </div>
 
-    <div class="field">
+    <div class="row2">
+      <div class="field">
+        <label>Tamanho do produto</label>
+        <input type="number" id="f-size" min="0" step="0.01" placeholder="Ex: 1, 500, 2...">
+      </div>
+      <div class="field">
+        <label>Unidade</label>
+        <select id="f-unit">
+          <option value="un">unidade</option>
+          <option value="kg">kg</option>
+          <option value="g">g</option>
+          <option value="l">litro</option>
+          <option value="ml">ml</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field" id="field-barcode">
       <label>Código de barras (opcional)</label>
       <input type="text" id="f-barcode" placeholder="Será preenchido ao escanear">
+    </div>
+
+    <div class="field" id="field-low">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; text-transform:none; letter-spacing:0;">
+        <input type="checkbox" id="f-low" style="width:auto;">
+        Marcar como "está acabando"
+      </label>
     </div>
 
     <div class="btn-row">
@@ -445,6 +494,11 @@ const CATEGORIES = ['Limpeza','Alimentos','Higiene','Bebidas','Outros'];
 /* ---------------- Init: real-time listeners ---------------- */
 docRef('inventory').onSnapshot(doc=>{
   inventory = doc.exists ? (doc.data().items || []) : [];
+  inventory.forEach(i=>{
+    if(i.low === undefined) i.low = false;
+    if(i.size === undefined) i.size = null;
+    if(i.unit === undefined) i.unit = 'un';
+  });
   renderInventory();
   renderShopping();
 });
@@ -459,6 +513,27 @@ docRef('prices').onSnapshot(doc=>{
 });
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+
+/* Calcula preço por unidade base (kg, L ou unidade) a partir do tamanho da embalagem */
+function pricePerUnit(value, size, unit){
+  if(value===null || value===undefined || value==='' || isNaN(value)) return null;
+  if(!size || isNaN(size) || size<=0) return null;
+  const v = parseFloat(value);
+  const s = parseFloat(size);
+  switch(unit){
+    case 'kg': return { val: v/s, label: '/kg' };
+    case 'g':  return { val: (v/s)*1000, label: '/kg' };
+    case 'l':  return { val: v/s, label: '/L' };
+    case 'ml': return { val: (v/s)*1000, label: '/L' };
+    case 'un': return { val: v/s, label: '/un' };
+    default: return null;
+  }
+}
+function formatPricePerUnit(value, size, unit){
+  const r = pricePerUnit(value, size, unit);
+  if(!r) return '';
+  return '$'+r.val.toFixed(2)+r.label;
+}
 
 function showToast(msg){
   const t = document.getElementById('toast');
@@ -497,11 +572,15 @@ function renderInventory(){
 
     items.forEach(item=>{
       const row = document.createElement('div');
-      row.className = 'item-row' + (item.qty<=0 ? ' zero' : '');
+      const statusClass = item.qty<=0 ? ' zero' : (item.low ? ' low' : '');
+      row.className = 'item-row' + statusClass;
+      const sizeTag = (item.size && item.unit) ? `<span class="size-tag">${item.size}${item.unit}</span>` : '';
+      let statusText = item.qty<=0 ? 'EM FALTA' : 'Qtd: '+item.qty;
+      if(item.qty>0 && item.low) statusText += ' · ACABANDO';
       row.innerHTML = `
         <div class="info">
-          <div class="name">${item.name}</div>
-          <div class="qty">${item.qty<=0 ? 'EM FALTA' : 'Qtd: '+item.qty}</div>
+          <div class="name">${item.name}${sizeTag}</div>
+          <div class="qty">${statusText}</div>
         </div>
         <div class="qty-stepper">
           <button data-act="dec">−</button>
@@ -509,6 +588,8 @@ function renderInventory(){
           <button data-act="inc">+</button>
         </div>
         <div class="actions">
+          <button class="icon-btn${item.low?' low-active':''}" data-act="low" title="Marcar/desmarcar 'está acabando'">⚠</button>
+          <button class="icon-btn" data-act="edit" title="Editar item">✎</button>
           <button class="icon-btn add" data-act="tolist" title="Adicionar à lista de compras">＋</button>
           <button class="icon-btn danger" data-act="hide" title="Não mostrar mais este item">✕</button>
         </div>
@@ -517,6 +598,8 @@ function renderInventory(){
       row.querySelector('[data-act="dec"]').onclick = ()=>changeQty(item.id, -1);
       row.querySelector('[data-act="tolist"]').onclick = ()=>addToShoppingList(item);
       row.querySelector('[data-act="hide"]').onclick = ()=>hideItem(item.id);
+      row.querySelector('[data-act="low"]').onclick = ()=>toggleLow(item.id);
+      row.querySelector('[data-act="edit"]').onclick = ()=>openEditModal(item.id);
       group.appendChild(row);
     });
     wrap.appendChild(group);
@@ -531,6 +614,14 @@ function changeQty(id, delta){
   renderInventory();
 }
 
+function toggleLow(id){
+  const item = inventory.find(i=>i.id===id);
+  if(!item) return;
+  item.low = !item.low;
+  saveData('inventory', inventory);
+  renderInventory();
+}
+
 function hideItem(id){
   const item = inventory.find(i=>i.id===id);
   if(!item) return;
@@ -540,35 +631,119 @@ function hideItem(id){
   renderInventory();
 }
 
-/* ---------------- Modal: add item ---------------- */
+/* ---------------- Modal: add/edit item / add price product ---------------- */
 const overlay = document.getElementById('modal-overlay');
-document.getElementById('fab-add').onclick = ()=>{
+let modalMode = 'item-new'; // 'item-new' | 'item-edit' | 'price-new'
+let editingItemId = null;
+
+function resetModalFields(){
   document.getElementById('f-name').value='';
   document.getElementById('f-category').value='Limpeza';
   document.getElementById('f-qty').value=1;
   document.getElementById('f-barcode').value='';
+  document.getElementById('f-size').value='';
+  document.getElementById('f-unit').value='un';
+  document.getElementById('f-low').checked=false;
+}
+
+function setModalMode(mode){
+  modalMode = mode;
+  const showInventoryFields = (mode !== 'price-new');
+  document.getElementById('field-cat-qty').style.display = showInventoryFields ? 'flex' : 'none';
+  document.getElementById('field-barcode').style.display = showInventoryFields ? 'block' : 'none';
+  document.getElementById('field-low').style.display = (mode==='item-edit') ? 'block' : 'none';
+  document.getElementById('scan-field').style.display = (mode==='price-new') ? 'none' : 'block';
+
+  if(mode==='item-new'){
+    document.getElementById('modal-title').textContent = 'Novo item';
+    document.getElementById('modal-save').textContent = 'Salvar item';
+  } else if(mode==='item-edit'){
+    document.getElementById('modal-title').textContent = 'Editar item';
+    document.getElementById('modal-save').textContent = 'Salvar alterações';
+  } else if(mode==='price-new'){
+    document.getElementById('modal-title').textContent = 'Novo produto na tabela de preços';
+    document.getElementById('modal-save').textContent = 'Adicionar à tabela de preços';
+  }
+}
+
+document.getElementById('fab-add').onclick = ()=>{
+  resetModalFields();
+  editingItemId = null;
+  const activeTab = document.querySelector('nav.tabs button.active').dataset.tab;
+  setModalMode(activeTab === 'precos' ? 'price-new' : 'item-new');
   overlay.classList.add('show');
 };
+
+function openEditModal(id){
+  const item = inventory.find(i=>i.id===id);
+  if(!item) return;
+  resetModalFields();
+  editingItemId = id;
+  document.getElementById('f-name').value = item.name;
+  document.getElementById('f-category').value = item.category;
+  document.getElementById('f-qty').value = item.qty;
+  document.getElementById('f-barcode').value = item.barcode || '';
+  document.getElementById('f-size').value = item.size ?? '';
+  document.getElementById('f-unit').value = item.unit || 'un';
+  document.getElementById('f-low').checked = !!item.low;
+  setModalMode('item-edit');
+  overlay.classList.add('show');
+}
+
 document.getElementById('modal-cancel').onclick = ()=>{
   stopScanner();
   overlay.classList.remove('show');
 };
+
 document.getElementById('modal-save').onclick = ()=>{
   const name = document.getElementById('f-name').value.trim();
   if(!name){ showToast('Digite o nome do produto'); return; }
+  const size = document.getElementById('f-size').value === '' ? null : parseFloat(document.getElementById('f-size').value);
+  const unit = document.getElementById('f-unit').value;
+
+  if(modalMode === 'price-new'){
+    if(prices.some(p=>p.name.toLowerCase()===name.toLowerCase())){
+      showToast('Já existe na tabela de preços');
+    } else {
+      prices.push({id:uid(), name, size, unit, aldi:null, coles:null, woolies:null});
+      saveData('prices', prices);
+      renderPriceTable();
+      renderShopping();
+      showToast('Produto adicionado à tabela de preços!');
+    }
+    overlay.classList.remove('show');
+    return;
+  }
+
   const category = document.getElementById('f-category').value;
   const qty = parseInt(document.getElementById('f-qty').value)||0;
   const barcode = document.getElementById('f-barcode').value.trim();
+  const low = document.getElementById('f-low').checked;
 
-  // se já existe item com mesmo nome e estava oculto, reativa
-  let existing = inventory.find(i=>i.name.toLowerCase()===name.toLowerCase());
-  if(existing){
-    existing.qty = qty;
-    existing.category = category;
-    existing.barcode = barcode || existing.barcode;
-    existing.hidden = false;
+  if(modalMode === 'item-edit' && editingItemId){
+    const item = inventory.find(i=>i.id===editingItemId);
+    if(item){
+      item.name = name;
+      item.category = category;
+      item.qty = qty;
+      item.barcode = barcode || item.barcode;
+      item.size = size;
+      item.unit = unit;
+      item.low = low;
+    }
   } else {
-    inventory.push({id:uid(), name, category, qty, barcode, hidden:false});
+    // se já existe item com mesmo nome e estava oculto, reativa
+    let existing = inventory.find(i=>i.name.toLowerCase()===name.toLowerCase());
+    if(existing){
+      existing.qty = qty;
+      existing.category = category;
+      existing.barcode = barcode || existing.barcode;
+      existing.size = size;
+      existing.unit = unit;
+      existing.hidden = false;
+    } else {
+      inventory.push({id:uid(), name, category, qty, barcode, size, unit, hidden:false, low:false});
+    }
   }
   saveData('inventory', inventory);
   renderInventory();
@@ -745,9 +920,11 @@ function renderShopping(){
         priceHtml = '<div class="price-line">' + markets.map(m=>{
           const has = m.val!==null && m.val!==undefined && m.val!=='' && !isNaN(m.val);
           const isBest = has && m.key===cheapest.key;
+          const unitTxt = has ? formatPricePerUnit(m.val, p.size, p.unit) : '';
           return `<div class="price-chip ${isBest?'best':''}">
                     <span class="market">${m.label}</span>
                     ${has ? '$'+parseFloat(m.val).toFixed(2) : '—'}
+                    ${unitTxt ? `<span class="unit-price-chip">${unitTxt}</span>` : ''}
                   </div>`;
         }).join('') + '</div>';
 
@@ -821,28 +998,47 @@ function renderPriceTable(){
   body.innerHTML = '';
 
   if(prices.length===0){
-    body.innerHTML = '<tr><td colspan="5" style="color:var(--ink-dim); font-family:var(--mono); font-size:12px;">Nenhum produto cadastrado. Use o botão abaixo da tabela.</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" style="color:var(--ink-dim); font-family:var(--mono); font-size:12px;">Nenhum produto cadastrado. Use o botão abaixo da tabela.</td></tr>';
     return;
   }
 
   prices.forEach(p=>{
     const tr = document.createElement('tr');
+    const renderUnitPrice = (val)=> {
+      const t = formatPricePerUnit(val, p.size, p.unit);
+      return t ? `<span class="unit-price">${t}</span>` : '';
+    };
     tr.innerHTML = `
       <td><input type="text" value="${p.name}" data-field="name" style="width:100%; text-align:left;"></td>
-      <td><input type="number" step="0.01" value="${p.aldi ?? ''}" data-field="aldi" placeholder="—"></td>
-      <td><input type="number" step="0.01" value="${p.coles ?? ''}" data-field="coles" placeholder="—"></td>
-      <td><input type="number" step="0.01" value="${p.woolies ?? ''}" data-field="woolies" placeholder="—"></td>
+      <td><input type="number" step="0.01" min="0" class="size-input" value="${p.size ?? ''}" data-field="size" placeholder="—"></td>
+      <td>
+        <select class="unit-select" data-field="unit">
+          <option value="un" ${p.unit==='un'||!p.unit?'selected':''}>un</option>
+          <option value="kg" ${p.unit==='kg'?'selected':''}>kg</option>
+          <option value="g" ${p.unit==='g'?'selected':''}>g</option>
+          <option value="l" ${p.unit==='l'?'selected':''}>L</option>
+          <option value="ml" ${p.unit==='ml'?'selected':''}>ml</option>
+        </select>
+      </td>
+      <td><input type="number" step="0.01" value="${p.aldi ?? ''}" data-field="aldi" placeholder="—">${renderUnitPrice(p.aldi)}</td>
+      <td><input type="number" step="0.01" value="${p.coles ?? ''}" data-field="coles" placeholder="—">${renderUnitPrice(p.coles)}</td>
+      <td><input type="number" step="0.01" value="${p.woolies ?? ''}" data-field="woolies" placeholder="—">${renderUnitPrice(p.woolies)}</td>
       <td><button class="icon-btn danger" data-act="rm">✕</button></td>
     `;
-    tr.querySelectorAll('input').forEach(inp=>{
+    tr.querySelectorAll('input, select').forEach(inp=>{
       inp.addEventListener('change', ()=>{
         const field = inp.dataset.field;
         if(field==='name'){
           p.name = inp.value;
+        } else if(field==='unit'){
+          p.unit = inp.value;
+        } else if(field==='size'){
+          p.size = inp.value === '' ? null : parseFloat(inp.value);
         } else {
           p[field] = inp.value === '' ? null : parseFloat(inp.value);
         }
         saveData('prices', prices);
+        renderPriceTable();
         renderShopping();
       });
     });
@@ -857,7 +1053,7 @@ function renderPriceTable(){
 }
 
 document.getElementById('add-price-row').onclick = ()=>{
-  prices.push({id:uid(), name:'', aldi:null, coles:null, woolies:null});
+  prices.push({id:uid(), name:'', size:null, unit:'un', aldi:null, coles:null, woolies:null});
   saveData('prices', prices);
   renderPriceTable();
 };
@@ -866,7 +1062,7 @@ function addPriceRowFromName(name){
   if(prices.some(p=>p.name.toLowerCase()===name.toLowerCase())){
     showToast('Já existe na tabela de preços');
   } else {
-    prices.push({id:uid(), name, aldi:null, coles:null, woolies:null});
+    prices.push({id:uid(), name, size:null, unit:'un', aldi:null, coles:null, woolies:null});
     saveData('prices', prices);
     renderPriceTable();
     renderShopping();
